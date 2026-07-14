@@ -376,7 +376,7 @@
         <h1>Internship Radar</h1>
         <p class="subtitle">Upload a CV, paste messy job-alert emails, and turn them into a ranked internship shortlist with links, reasons, and risk checks.</p>
       </div>
-      <div class="privacy">Privacy-first MVP: your CV and job alerts are processed in this browser session. Nothing is saved by this page.</div>
+      <div class="privacy">Privacy-first MVP: your CV and job alerts are processed in this browser session. Anonymous usage events are counted without saving content.</div>
     </header>
 
     <section class="workspace">
@@ -404,6 +404,7 @@
             <button class="ghost" id="clearBtn">Clear</button>
           </div>
           <p class="status" id="status"></p>
+          <p class="hint">Metrics tracked: page views, CV file type, analyze clicks, generated job counts, report downloads. CV text and job-alert content are not sent.</p>
         </div>
       </div>
 
@@ -491,6 +492,16 @@
     const output = document.querySelector("#output");
     const outputEmpty = document.querySelector("#outputEmpty");
     const cards = document.querySelector("#cards");
+
+    function track(event, props = {}) {
+      const safeProps = { ...props };
+      fetch("/api/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event, props: safeProps }),
+        keepalive: true
+      }).catch(() => {});
+    }
 
     function normalize(text) {
       return (text || "").replace(/\r/g, "\n").replace(/\u00a0/g, " ").replace(/[ \t]+/g, " ").trim();
@@ -770,6 +781,14 @@
       state.filter = "all";
       document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.filter === "all"));
       status.textContent = `Analyzed ${state.results.length} job cards.`;
+      track("analyze", {
+        pastedChars: normalize(jobsText.value).length,
+        jobsFound: state.results.length,
+        strong: state.results.filter((job) => job.bucket === "strong").length,
+        apply: state.results.filter((job) => job.bucket === "apply").length,
+        risk: state.results.filter((job) => job.bucket === "risk").length,
+        hasCv: Boolean(state.cvText)
+      });
       render();
     }
 
@@ -804,6 +823,12 @@
       a.download = "internship-radar-report.md";
       a.click();
       URL.revokeObjectURL(url);
+      track("download_report", {
+        jobsFound: state.results.length,
+        strong: state.results.filter((job) => job.bucket === "strong").length,
+        apply: state.results.filter((job) => job.bucket === "apply").length,
+        risk: state.results.filter((job) => job.bucket === "risk").length
+      });
     }
 
     function loadSample() {
@@ -831,6 +856,7 @@ Company: AIA
 Location: Hong Kong
 Business consultant role with sales commission and insurance products. Fresh graduates welcome.
 https://example.com/aia-consultant`;
+      track("sample_loaded");
       analyze();
     }
 
@@ -845,6 +871,12 @@ https://example.com/aia-consultant`;
         state.cvText = normalize(text);
         state.cvKeywords = topKeywords(state.cvText);
         cvStatus.textContent = `Loaded ${file.name}. Keywords: ${state.cvKeywords.slice(0, 8).join(", ") || "not enough text found"}`;
+        track("cv_loaded", {
+          fileType: file.name.split(".").pop().toLowerCase(),
+          fileSizeKb: Math.round(file.size / 1024),
+          cvChars: state.cvText.length,
+          keywordCount: state.cvKeywords.length
+        });
       } catch (error) {
         cvStatus.textContent = "Could not read this CV. Try PDF, DOCX, or TXT.";
         status.className = "status error";
@@ -855,7 +887,10 @@ https://example.com/aia-consultant`;
     document.querySelector("#analyzeBtn").addEventListener("click", analyze);
     document.querySelector("#sampleBtn").addEventListener("click", loadSample);
     document.querySelector("#downloadBtn").addEventListener("click", downloadReport);
-    document.querySelector("#printBtn").addEventListener("click", () => window.print());
+    document.querySelector("#printBtn").addEventListener("click", () => {
+      track("print_report", { jobsFound: state.results.length });
+      window.print();
+    });
     document.querySelector("#clearBtn").addEventListener("click", () => {
       state.cvText = "";
       state.cvKeywords = [];
@@ -874,6 +909,18 @@ https://example.com/aia-consultant`;
         document.querySelectorAll(".tab").forEach((node) => node.classList.toggle("active", node === tab));
         render();
       });
+    });
+
+    let pasteTracked = false;
+    jobsText.addEventListener("paste", () => {
+      if (pasteTracked) return;
+      pasteTracked = true;
+      setTimeout(() => track("job_text_pasted", { pastedChars: normalize(jobsText.value).length }), 0);
+    });
+
+    track("page_view", {
+      referrer: document.referrer ? "present" : "direct",
+      path: location.pathname
     });
   </script>
 </body>
