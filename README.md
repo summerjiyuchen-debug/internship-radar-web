@@ -38,6 +38,41 @@ This web MVP is the next iteration. It removes GitHub, installation, and email a
 - No email permission required: users can paste or forward content manually at first.
 - Explainable ranking: each recommendation includes reasons and risk checks.
 - Student-focused filtering: the scoring favors internships, graduate programs, and early-career language.
+- Usage-aware: anonymous events help measure whether users actually reach the core value moment.
+
+## Usage metrics
+
+The web app records lightweight anonymous events through `/api/track` and writes them to Vercel runtime logs.
+
+Tracked events:
+
+- `page_view`: someone opened the page
+- `cv_loaded`: a CV file was loaded, with file type, file size, extracted character count, and keyword count
+- `job_text_pasted`: job-alert text was pasted, with character count only
+- `analyze`: the user generated a shortlist, with job count and bucket counts
+- `download_report`: the user downloaded the report
+- `print_report`: the user opened print/save-to-PDF
+- `sample_loaded`: the user tried the sample data
+
+Not tracked:
+
+- CV content
+- job-alert content
+- names
+- email addresses
+- application links
+- exact pasted text
+
+Where to view:
+
+1. Open the Vercel dashboard.
+2. Select the `internship-radar-web` project.
+3. Open Runtime Logs.
+4. Filter for `usage_event`.
+
+This gives an early funnel:
+
+`page_view -> cv_loaded -> job_text_pasted -> analyze -> download_report`
 
 ## How to copy job alerts
 
