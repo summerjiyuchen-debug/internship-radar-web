@@ -477,6 +477,14 @@
       "experienced hire", "senior analyst", "manager", "assistant manager"
     ];
 
+    const NON_JOB_TERMS = [
+      "instagram", "follow us", "wechat", "weixin", "mini program", "guidebook",
+      "career guidebook", "upcoming events", "upcoming activities", "workshop",
+      "webinar", "seminar", "information session", "add us", "scan the qr",
+      "qr code", "newsletter", "contact us", "unsubscribe", "copyright",
+      "all different type", "more information", "social media"
+    ];
+
     const SOURCE_WEIGHTS = [
       { pattern: /hku|career|campus|university|ugfbe|cdt/i, label: "School / campus", bonus: 18 },
       { pattern: /linkedin/i, label: "LinkedIn", bonus: 10 },
@@ -599,6 +607,7 @@
         .map((block) => block.replace(/^(dear\s+\w+|hi\s+\w+|hello\s+\w+)[,\s-]*/i, ""))
         .filter((block) => block.length > 35)
         .filter((block) => !isGenericEmailHeader(block))
+        .filter((block) => isLikelyJobBlock(block))
         .slice(0, 80);
     }
 
@@ -608,6 +617,23 @@
       const genericHeader = /^(various|latest|new|multiple|selected)\s+.*(job|internship|opportunit|vacanc|opening)/i.test(compact);
       const newsletterLine = /(opportunities are open for applications|some applications|please find|below are|this week|career newsletter|job opportunities)/i.test(compact);
       return (genericHeader || newsletterLine) && !hasJobStructure;
+    }
+
+    function isLikelyJobBlock(block) {
+      const compact = normalize(block).toLowerCase();
+      const nonJobHits = includesAny(block, NON_JOB_TERMS);
+      const hasApplicationUrl = /https?:\/\/[^\s)>\]]+/i.test(block);
+      const hasJobStructure = /\b(company|employer|location|deadline|closing date|apply by|job title|position|role)\b/i.test(block);
+      const hasJobTitle = /\b(data|business|investment|research|quantitative|finance|risk|market|portfolio|strategy|consulting|software|technology|operations|marketing|product|project|equity|credit|wealth|asset)\s+(analyst|intern|trainee|associate|assistant|researcher|consultant|developer|engineer|manager)\b/i.test(block)
+        || /\b(summer analyst|summer intern|internship|graduate trainee|graduate programme|graduate program|management trainee)\b/i.test(block);
+      const hasHiringAction = /\b(apply|application|applications|hiring|recruiting|join our|we are looking for|responsibilities|requirements|qualifications)\b/i.test(block);
+      const hasCompanyLikeText = /(?:company|employer)[:\s]+[a-z0-9&.,' -]{2,}/i.test(block) || /\bat\s+[A-Z][A-Za-z0-9&.,' -]{2,60}/.test(block);
+
+      const jobEvidence = [hasApplicationUrl, hasJobStructure, hasJobTitle, hasHiringAction, hasCompanyLikeText].filter(Boolean).length;
+      const onlySchoolAdmin = nonJobHits.length && !hasJobTitle && !hasCompanyLikeText && !/\b(apply|applications|deadline|closing date)\b/i.test(block);
+      if (onlySchoolAdmin) return false;
+      if (nonJobHits.length >= 2 && jobEvidence < 3) return false;
+      return jobEvidence >= 2;
     }
 
     function extractCompany(block) {
