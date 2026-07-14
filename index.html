@@ -392,7 +392,7 @@
           <h2 class="step-title"><span>2</span>Add Job Alerts</h2>
           <label for="jobsText">Paste emails, job-alert text, or job descriptions</label>
           <textarea id="jobsText" placeholder="Paste LinkedIn, school career email, SEEK, JobsDB, CTgoodjobs, or company job alerts here. Links are helpful but optional."></textarea>
-          <p class="hint">Fast copy: open the alert email, click inside the message body, press Ctrl+A then Ctrl+C, and paste here. If links do not copy, use Forward / Print view / View original, then copy the full message.</p>
+          <p class="hint">Fast copy: open the alert email, click inside the message body, press Ctrl+A then Ctrl+C, and paste here. If the result only shows short titles like "Summer Intern", copy the expanded job section with company, requirements, and apply button from the original email or platform.</p>
         </div>
 
         <div class="panel">
@@ -683,6 +683,26 @@
       return terms.filter((term) => lower.includes(term.toLowerCase()));
     }
 
+    function assessDetailQuality(block, company, url, roleHits) {
+      const text = normalize(block);
+      const hasCompany = company && company !== "N/A";
+      const hasLocation = /(hong kong|remote|hybrid|central|kowloon|wan chai|causeway bay|singapore|shenzhen|china|london|new york)/i.test(text);
+      const hasDeadline = /deadline|apply by|closing date|\b\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(text);
+      const hasResponsibilities = /responsibilities|requirements|qualifications|you will|looking for|candidate|skills|preferred|about the role/i.test(text);
+      const hasSpecificDomain = roleHits.length > 0 || /(bank|asset management|investment|equity|portfolio|markets|finance|fintech|consulting|data|analytics|quant|risk|research|valuation|accounting|audit)/i.test(text);
+      const hasEnoughText = text.length >= 180;
+      const genericTitleOnly = /^(summer intern|internship|asia internship programs?|graduate jobs?|intern)\b/i.test(text) && text.length < 260;
+      const detailScore = [hasCompany, Boolean(url), hasLocation, hasDeadline, hasResponsibilities, hasSpecificDomain, hasEnoughText].filter(Boolean).length;
+      return {
+        detailScore,
+        isThin: detailScore < 3 || genericTitleOnly,
+        hasSpecificDomain,
+        hasCompany,
+        hasEnoughText,
+        genericTitleOnly
+      };
+    }
+
     function scoreJob(block) {
       const lower = block.toLowerCase();
       const source = detectSource(block);
@@ -694,6 +714,7 @@
       const blockHits = includesAny(block, BLOCK_TERMS);
       const expHits = includesAny(block, EXPERIENCE_RISKS);
       const cvHits = state.cvKeywords.filter((keyword) => lower.includes(keyword.toLowerCase())).slice(0, 10);
+      const detail = assessDetailQuality(block, company, url, roleHits);
 
       let score = 42 + source.bonus;
       score += Math.min(22, cvHits.length * 3);
@@ -704,10 +725,12 @@
       if (blockHits.length) score -= 35;
       if (expHits.length) score -= 18;
       if (/full.?time/i.test(block) && !/intern/i.test(block)) score -= 8;
+      if (detail.isThin) score -= 22;
+      if (!detail.hasSpecificDomain) score -= 8;
       score = Math.max(0, Math.min(100, Math.round(score)));
 
-      const level = score >= 78 ? "Strong match" : score >= 58 ? "Apply / review" : "Low priority";
-      const bucket = score >= 78 ? "strong" : score >= 58 ? "apply" : "risk";
+      const level = detail.isThin ? "Needs detail" : score >= 78 ? "Strong match" : score >= 58 ? "Apply / review" : "Low priority";
+      const bucket = detail.isThin ? "risk" : score >= 78 ? "strong" : score >= 58 ? "apply" : "risk";
       const reasons = [];
       const risks = [];
 
@@ -722,6 +745,9 @@
       if (blockHits.length) risks.push("Possible blocked/low-fit terms: " + blockHits.slice(0, 6).join(", "));
       if (expHits.length) risks.push("May require prior full-time experience: " + expHits.slice(0, 4).join(", "));
       if (!studentHits.length) risks.push("No explicit internship/student-program wording detected.");
+      if (detail.isThin) risks.push("Insufficient job detail copied: cannot judge company, function, requirements, or fit reliably.");
+      if (!detail.hasSpecificDomain) risks.push("No clear finance/data/research/consulting domain signal detected.");
+      if (!detail.hasCompany) risks.push("No company or employer detected.");
       if (!risks.length) risks.push("No major risk flags detected.");
 
       return {
