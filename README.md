@@ -40,6 +40,17 @@ This web MVP is the next iteration. It removes GitHub, installation, and email a
 - Student-focused filtering: the scoring favors internships, graduate programs, and early-career language.
 - Usage-aware: anonymous events help measure whether users actually reach the core value moment.
 
+## How the job analysis works
+
+The app separates extraction from scoring:
+
+1. **Job evidence check**: first decide whether a pasted block is actually a job listing. Social media footers, WeChat mini-program notices, guidebook links, event promos, newsletter introductions, and unsubscribe/contact blocks are filtered out.
+2. **Field extraction**: extract likely title, company, location, deadline, source, and application link when present.
+3. **Fit scoring**: compare the job text with CV keywords, student/internship language, target role terms, source quality, location, and risk terms.
+4. **Risk checks**: flag experienced-hire requirements, insurance/sales terms, and missing student-program wording.
+
+This matters because school career emails often mix real jobs with announcements. A higher-trust source should help real listings rank higher, but it should not turn Instagram, WeChat, or guidebook text into a fake job.
+
 ## Usage metrics
 
 The web app records lightweight anonymous events through `/api/track` and writes them to Vercel runtime logs.
