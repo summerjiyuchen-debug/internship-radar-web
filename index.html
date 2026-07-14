@@ -391,8 +391,8 @@
         <div class="panel">
           <h2 class="step-title"><span>2</span>Add Job Alerts</h2>
           <label for="jobsText">Paste emails, job-alert text, or job descriptions</label>
-          <textarea id="jobsText" placeholder="Paste LinkedIn, school career email, SEEK, JobsDB, CTgoodjobs, or company job alerts here. Include links if possible."></textarea>
-          <p class="hint">Tip: paste multiple alerts at once. The tool will split them into likely job cards.</p>
+          <textarea id="jobsText" placeholder="Paste LinkedIn, school career email, SEEK, JobsDB, CTgoodjobs, or company job alerts here. Links are helpful but optional."></textarea>
+          <p class="hint">Fast copy: open the alert email, click inside the message body, press Ctrl+A then Ctrl+C, and paste here. If links do not copy, use Forward / Print view / View original, then copy the full message.</p>
         </div>
 
         <div class="panel">
@@ -584,7 +584,19 @@
         }
       });
 
-      return expanded.filter((block) => block.length > 35).slice(0, 80);
+      return expanded
+        .map((block) => block.replace(/^(dear\s+\w+|hi\s+\w+|hello\s+\w+)[,\s-]*/i, ""))
+        .filter((block) => block.length > 35)
+        .filter((block) => !isGenericEmailHeader(block))
+        .slice(0, 80);
+    }
+
+    function isGenericEmailHeader(block) {
+      const compact = normalize(block).toLowerCase();
+      const hasJobStructure = /company|location|deadline|apply|https?:\/\//i.test(block);
+      const genericHeader = /^(various|latest|new|multiple|selected)\s+.*(job|internship|opportunit|vacanc|opening)/i.test(compact);
+      const newsletterLine = /(opportunities are open for applications|some applications|please find|below are|this week|career newsletter|job opportunities)/i.test(compact);
+      return (genericHeader || newsletterLine) && !hasJobStructure;
     }
 
     function extractCompany(block) {
@@ -651,7 +663,7 @@
       score += Math.min(18, roleHits.length * 4);
       score += Math.min(18, studentHits.length * 5);
       if (/hong kong|remote|hybrid/i.test(block)) score += 6;
-      if (url) score += 5;
+      if (url) score += 3;
       if (blockHits.length) score -= 35;
       if (expHits.length) score -= 18;
       if (/full.?time/i.test(block) && !/intern/i.test(block)) score -= 8;
@@ -667,11 +679,11 @@
       if (cvHits.length) reasons.push("CV keywords matched: " + cvHits.slice(0, 8).join(", "));
       if (source.bonus) reasons.push("Higher-trust source: " + source.label);
       if (url) reasons.push("Application link detected.");
+      else reasons.push("No link was copied, so use the original email or job platform to open the application page.");
       if (!reasons.length) reasons.push("Some relevant terms were found, but the match is not strong.");
 
       if (blockHits.length) risks.push("Possible blocked/low-fit terms: " + blockHits.slice(0, 6).join(", "));
       if (expHits.length) risks.push("May require prior full-time experience: " + expHits.slice(0, 4).join(", "));
-      if (!url) risks.push("No clear application link detected.");
       if (!studentHits.length) risks.push("No explicit internship/student-program wording detected.");
       if (!risks.length) risks.push("No major risk flags detected.");
 
